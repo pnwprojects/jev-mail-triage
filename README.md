@@ -1,5 +1,7 @@
 # jev-mail-triage
 
+[![tests](https://github.com/pnwprojects/jev-mail-triage/actions/workflows/tests.yml/badge.svg)](https://github.com/pnwprojects/jev-mail-triage/actions/workflows/tests.yml)
+
 Files incoming mail with Jev, TypeSafe's decision model. It runs on Google
 Cloud (Cloud Run, Pub/Sub, Firestore) for a Gmail or Google Workspace mailbox,
 and optionally a Fastmail account, and comes with a small web console for
@@ -61,12 +63,13 @@ These come from the console running on made-up demo mail.
 | Item | Per month |
 |---|---|
 | Google Cloud (Cloud Run, Pub/Sub, Firestore, Secret Manager, Scheduler) | $0, inside the free tiers |
-| Artifact Registry build storage | a few cents (capped by the cleanup policy under "Cost") |
+| Artifact Registry build storage | a few cents (capped by the cleanup policy under "Cost details") |
 | Jev on TypeSafe: ~700 input tokens per email, about 4M tokens a month | roughly $0.20 at about $0.04 per million input tokens (output is free) |
 | **Total** | **well under $1** |
 
-Cost grows roughly in line with mail volume. A `$5` budget alert, with an
-automatic pause when it's reached, is set up for you (see "Budget pause").
+Cost grows roughly in line with mail volume; "Cost details" below has the
+breakdown and how to cap build storage. A `$5` budget alert, with an
+automatic pause when it's reached, is part of the setup (step 7; see "Budget pause").
 
 **Setup time:** about 1 to 2 hours, if you're comfortable with `gcloud`:
 
@@ -79,6 +82,7 @@ automatic pause when it's reached, is set up for you (see "Budget pause").
 | Rules console (IAP, rules database, first deploy) | 20 min |
 | Optional: Fastmail account | 15 min |
 
+## Safety
 
 Nothing is ever deleted, trashed, sent or forwarded. The Gmail wrapper
 (`triage/gmail.py`) has no such methods, and `modify_labels` refuses anything
@@ -155,8 +159,15 @@ All of these are config in `deploy/env.yaml`; redeploy with `deploy/deploy.sh`.
 
 ## Setup
 
-Needs `gcloud` logged in as an owner of your GCP project. First copy your
-settings into `deploy/env.yaml`: at least `GOOGLE_CLOUD_PROJECT` and
+Needs Python 3.12+ and `gcloud` logged in as an owner of your GCP project.
+Run everything from a clone of this repo:
+
+```bash
+git clone https://github.com/pnwprojects/jev-mail-triage.git && cd jev-mail-triage
+gcloud auth login && gcloud auth application-default login   # the scripts in scripts/ use the second one
+```
+
+First copy your settings into `deploy/env.yaml`: at least `GOOGLE_CLOUD_PROJECT` and
 `GMAIL_USER`. The deploy scripts read the project from there (or from
 `PROJECT=...`), default to region `us-central1` (`REGION=...`) and schedule
 jobs in UTC (`TIME_ZONE=...`, e.g. `America/New_York`).
@@ -200,7 +211,10 @@ python scripts/classify_recent.py 30
 rm gmail-oauth.json
 ```
 
-Tune category descriptions and the threshold until the preview looks right.
+Tune category descriptions and the thresholds until the preview looks right.
+The preview reads settings from the environment, not from `deploy/env.yaml`, so
+export the ones you're trying (e.g. `export CONFIDENCE_THRESHOLD=0.75
+CATEGORIES_JSON='{...}'`), then copy the values that work into `deploy/env.yaml`.
 
 **5. Deploy.** Check `deploy/env.yaml` (keep `DRY_RUN: "true"`), then:
 
@@ -209,11 +223,16 @@ deploy/deploy.sh
 gcloud run services logs read gmail-triage --region=us-central1 --limit=50
 ```
 
-Each new email logs a line like `<id> -> Receipts (keep_inbox=True) Receipts@0.94 next: Notifications@0.04 [dry run]`.
+Each new email logs a line like `<id> -> Receipts (keep) Receipts@0.94 next: Notifications@0.04 [dry run] rules=env`
+(the action is `keep`, `archive` or `spam`).
 
 **6. Go live** once the dry-run log looks right: set `DRY_RUN: "false"` and rerun
 `deploy/deploy.sh`. Only mail arriving after that is filed by the service; to
 file what arrived during the dry run, use `scripts/backfill.py` (below).
+
+**7. Budget pause.** `deploy/setup-budget-pause.sh` connects the $5 budget to
+the service so triage stops itself when the budget is reached (see "Budget
+pause"). Without it you get the budget emails only.
 
 ## Rules console
 
@@ -246,6 +265,7 @@ Gmail call that can add or remove only our labels, INBOX and SPAM, and waits
 while triage is paused. "Always for this sender/domain" also saves a sender
 rule, a new rules version: mail from that sender is filed without asking Jev
 (protected domains and account/security mail are still never moved).
+
 **Moving mail in Gmail.** Moving filed mail from one of our labels to another
 in Gmail (e.g. AI/FYI to AI/Marketing) counts as a correction too. gmail-triage
 sees the label change in the mailbox history, and when the email's category
@@ -379,7 +399,7 @@ Jev is billed by TypeSafe and isn't part of this budget.
 - **Watch expired** (no filing for days): `gcloud scheduler jobs run gmail-watch-renew --location=us-central1`.
 - **Token revoked** (logs show `invalid_grant`): redo step 3, then redeploy so the new secret version mounts.
 
-## Cost
+## Cost details
 
 About 200 notifications a day stays inside free tiers for Cloud Run, Pub/Sub,
 Firestore, Secret Manager and Cloud Scheduler (3 free jobs per billing
