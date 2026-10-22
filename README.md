@@ -31,6 +31,29 @@ works with consumer Gmail too.
 
 License: MIT (see `LICENSE`).
 
+## Why I built this
+
+I was getting dozens of political fundraising emails a day: "FINAL NOTICE",
+"3x match expires at midnight", the same campaign writing from five different
+addresses. Gmail's filters couldn't keep up. The senders rotate domains and
+subdomains faster than you can write rules for them, and Gmail's spam filter
+treats most of it as legitimate mail you once signed up for. Unsubscribing
+mostly moved me onto the next list.
+
+So this reads each new email the way I would, decides what kind of mail it
+is, and files it: political asks leave the Inbox, receipts and newsletters
+get labelled, junk goes to Spam. When it gets one wrong, the console lets
+me move it with one click and turn that correction into a rule.
+
+## Screenshots
+
+These come from the console running on made-up demo mail.
+
+| | |
+|---|---|
+| ![Filed mail](docs/screenshots/filed.png) **Filed mail**: what was filed, why, and a one-click Change | ![Rules](docs/screenshots/rules.png) **Rules**: categories, the description Jev sees, and where each one goes |
+| ![Change an email](docs/screenshots/change.png) **Change**: re-file one email, optionally as a sender rule | ![Metrics](docs/screenshots/metrics.png) **Metrics**: volume by category, Review rate, corrections |
+
 ## Cost and setup time
 
 **Running cost**, at about 200 emails a day (estimates; check current prices):
