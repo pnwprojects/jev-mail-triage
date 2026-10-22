@@ -31,6 +31,32 @@ works with consumer Gmail too.
 
 License: MIT (see `LICENSE`).
 
+## Cost and setup time
+
+**Running cost**, at about 200 emails a day (estimates; check current prices):
+
+| Item | Per month |
+|---|---|
+| Google Cloud (Cloud Run, Pub/Sub, Firestore, Secret Manager, Scheduler) | $0, inside the free tiers |
+| Artifact Registry build storage | a few cents (capped by the cleanup policy under "Cost") |
+| Jev on TypeSafe: ~700 input tokens per email, about 4M tokens a month | roughly $0.20 at about $0.04 per million input tokens (output is free) |
+| **Total** | **well under $1** |
+
+Cost grows roughly in line with mail volume. A `$5` budget alert, with an
+automatic pause when it's reached, is set up for you (see "Budget pause").
+
+**Setup time:** about 1 to 2 hours, if you're comfortable with `gcloud`:
+
+| Step | Time |
+|---|---|
+| GCP project, billing and `deploy/setup.sh` | 15 min |
+| OAuth app and Gmail refresh token | 15 to 20 min |
+| Secrets, then a read-only preview of Jev on your mail | 15 min, plus tuning |
+| Deploy in dry-run mode, check the logs, go live | 15 min, then a day of watching the dry-run log is a good idea |
+| Rules console (IAP, rules database, first deploy) | 20 min |
+| Optional: Fastmail account | 15 min |
+
+
 Nothing is ever deleted, trashed, sent or forwarded. The Gmail wrapper
 (`triage/gmail.py`) has no such methods, and `modify_labels` refuses anything
 except adding our own labels or `SPAM` and removing `INBOX`. Archive and Spam
@@ -350,7 +376,8 @@ The Fastmail account adds one Scheduler job (polling every 2 minutes, about
 22,000 short requests a month) and a few Firestore reads per poll, all inside the
 same free tiers.
 
-Jev usage is billed by TypeSafe, not GCP, so it sits outside the $5 budget alert. Rough volume: 200 emails × ~700 input tokens
+Jev usage is billed by TypeSafe, not GCP, so it sits outside the $5 budget alert
+(see "Cost and setup time" above for a rough figure). Rough volume: 200 emails × ~700 input tokens
 ≈ 4M input tokens a month; the price depends on TypeSafe's per-token rate.
 
 ## Security notes
