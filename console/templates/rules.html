@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Rules{% endblock %}
+{% block main %}
+<form method="post" action="{{ url_for('review') }}">
+<input type="hidden" name="csrf" value="{{ g.csrf }}">
+<input type="hidden" name="based_on" value="{{ based_on }}">
+{% set rows = form.categories + [{"name": "", "description": "", "archive": False, "spam": False}] %}
+<input type="hidden" name="rows" value="{{ rows|length }}">
+
+<div class="page-head">
+  <div>
+    <h1>Rules</h1>
+    <p>Version <a href="{{ url_for('version_page', number=active.number) }}">v{{ active.number }}</a>, saved {{ active.created_at|local }} by {{ active.created_by }}. Changes apply to the next email that arrives.</p>
+  </div>
+</div>
+
+{% if form.dry_run %}<div class="notice warn"><p><strong>Paused.</strong> Triage logs what it would do and changes no mail. Untick Pause below to resume.</p></div>{% endif %}
+{% if restoring %}<div class="notice info"><p>Restoring version {{ restoring.number }}. Review, then save to make it active.</p></div>{% endif %}
+{% if errors %}<div class="notice bad"><p><strong>Nothing was saved.</strong> Fix these first:</p><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+
+<div class="stack">
+<section class="card">
+  <div class="card-head">
+    <div>
+      <h2>Categories</h2>
+      <p class="muted small">Jev picks one category per email from these descriptions. Exactly one category is moved to Spam;
+      known junk senders go there too. Renaming a category creates a new <code>AI/</code> label; filed mail keeps the old one.</p>
+    </div>
+  </div>
+  <div class="cat-list">
+  {% for c in rows %}{% set i = loop.index0 %}
+    <div class="cat {% if loop.last %}new{% endif %}">
+      <label class="field"><span>{% if loop.last %}Add a category{% else %}Name{% endif %}</span>
+        <input name="cat-{{ i }}-name" value="{{ c.name }}" maxlength="60" {% if loop.last %}placeholder="New category name"{% endif %}></label>
+      <label class="field desc"><span>Description Jev sees</span>
+        <textarea name="cat-{{ i }}-description" rows="3" maxlength="1000" {% if loop.last %}placeholder="What belongs here, and what doesn't"{% endif %}>{{ c.description }}</textarea></label>
+      <label class="field"><span>Mail goes</span>
+        <select name="cat-{{ i }}-action">
+          <option value="keep" {% if not c.archive and not c.spam %}selected{% endif %}>Stays in Inbox</option>
+          <option value="archive" {% if c.archive %}selected{% endif %}>Archived</option>
+          <option value="spam" {% if c.spam %}selected{% endif %}>Moved to Spam</option>
+          {% if not loop.last %}<option value="delete">Delete this category</option>{% endif %}
+        </select></label>
+    </div>
+  {% endfor %}
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><div><h2>Sender rules</h2>
+    <p class="muted small">Mail from these senders is filed without asking Jev. Protected domains and account/security mail are still never moved.</p></div></div>
+  <label class="field"><span>One per line: <code>sender = Category</code></span>
+    <textarea name="sender_rules" rows="6" class="code" placeholder="*.example-campaign.org = Political funding requests">{{ form.sender_rules }}</textarea>
+    <span class="hint"><code>*.example.com</code> matches example.com and every subdomain · <code>*@news.example.com</code> any address there ·
+    <code>alerts-*@bank.com</code> matching addresses · <code>boss@work.com</code> one address. The most specific rule wins.</span></label>
+</section>
+
+<section class="card">
+  <div class="card-head"><div><h2>Thresholds</h2>
+    <p class="muted small">Jev's confidence needed for each action, between 0.50 and 0.99. Spam must be at least Archive.</p></div></div>
+  <div class="grid">
+    <label class="field"><span>Send to Review below</span><input name="confidence_threshold" value="{{ form.confidence_threshold }}" inputmode="decimal"></label>
+    <label class="field"><span>Archive at</span><input name="archive_threshold" value="{{ form.archive_threshold }}" inputmode="decimal"></label>
+    <label class="field"><span>Move to Spam at</span><input name="spam_threshold" value="{{ form.spam_threshold }}" inputmode="decimal"></label>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h2>Safety and other settings</h2></div>
+  <div class="grid">
+    <label class="field"><span>Never archive or Spam mail from</span>
+      <textarea name="protected_domains" rows="5" class="code">{{ form.protected_domains }}</textarea>
+      <span class="hint">One domain per line; subdomains included.</span></label>
+    <div>
+      <label class="field"><span>Jev model</span><input name="jev_model" value="{{ form.jev_model }}">
+        <span class="hint"><code>jev-latest</code> or a pinned release like <code>jev-1.13.0</code>.</span></label>
+      <label class="check"><input type="checkbox" name="learn_junk_senders" value="1" {% if form.learn_junk_senders %}checked{% endif %}>
+        <span>Send mail to Spam when its sender already has mail in Spam</span></label>
+      <label class="check"><input type="checkbox" name="dry_run" value="1" {% if form.dry_run %}checked{% endif %}>
+        <span><strong>Pause</strong>: log decisions but change no mail</span></label>
+    </div>
+  </div>
+</section>
+</div>
+
+<div class="savebar"><div class="savebar-inner">
+  <span class="muted small">Nothing is saved until you review the changes.</span>
+  <button type="submit">Review changes</button>
+</div></div>
+</form>
+{% endblock %}

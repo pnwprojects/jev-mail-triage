@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% from "macros.html" import diff_table %}
+{% block title %}v{{ version.number }}{% endblock %}
+{% block main %}
+<div class="page-head">
+  <div>
+    <h1>Version {{ version.number }} {% if version.number == active %}<span class="badge good">active</span>{% endif %}</h1>
+    <p>{{ version.created_at|local }} by {{ version.created_by }}{% if version.note %} · “{{ version.note }}”{% endif %}</p>
+  </div>
+  {% if version.number != active %}<a class="btn ghost" href="{{ url_for('rules_page', **{'from': version.number}) }}">Restore this version</a>{% endif %}
+</div>
+<div class="stack">
+{% if version.number == active and (to_archive or to_inbox) %}
+<section class="card">
+  <h2>Apply to recent mail</h2>
+  <p class="muted">New mail already follows this version. Recent mail filed under the categories it changed can be moved to match:
+  {%- if to_archive %} <strong>{{ to_archive|join(", ") }}</strong> mail still in the Inbox gets archived{% endif %}
+  {%- if to_archive and to_inbox %};{% endif %}
+  {%- if to_inbox %} archived <strong>{{ to_inbox|join(", ") }}</strong> mail goes back to the Inbox{% endif %}.
+  Other categories, Spam, Trash, protected domains and emails you corrected by hand are left alone.</p>
+  <form class="row" method="post" action="{{ url_for('reprocess', number=version.number) }}">
+    <input type="hidden" name="csrf" value="{{ g.csrf }}">
+    <label class="row">Mail from the last <input name="days" type="number" min="1" max="30" value="7" class="short"> days</label>
+    <button type="submit">Preview</button>
+  </form>
+</section>
+{% endif %}
+<section class="card flush">
+  <div class="card-title"><h2>{% if version.based_on %}Changes from v{{ version.based_on }}{% else %}Settings{% endif %}</h2></div>
+  {{ diff_table(rows) }}
+</section>
+</div>
+{% endblock %}

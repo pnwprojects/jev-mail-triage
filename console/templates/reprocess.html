@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Apply to recent mail{% endblock %}
+{% block main %}
+<div class="page-head"><div>
+  <h1>{% if apply %}Applied{% else %}Preview{% endif %}: v{{ version.number }} on the last {{ days }} days</h1>
+  <p>{% if apply %}These emails were moved in {{ mail_name }}.{% else %}Nothing has moved yet.{% endif %}</p>
+</div></div>
+{% if not ok %}
+<div class="notice bad"><p>Nothing was moved. {{ error }}</p></div>
+{% else %}
+<div class="stack">
+<div class="card flush">
+<table class="table">
+<thead><tr><th>Category</th><th>{% if apply %}Moved{% else %}Would move{% endif %}</th><th>Emails</th></tr></thead>
+<tbody>{% for category, r in result.items() %}
+<tr><td><span class="chip">{{ category }}</span></td><td>{% if r.move == "inbox" %}<span class="badge keep">Back to the Inbox</span>{% else %}<span class="badge archive">Archived</span>{% endif %}</td><td><strong>{{ r.count }}</strong></td></tr>
+{% endfor %}</tbody>
+</table>
+</div>
+{% if not apply %}
+{% if result.values()|sum(attribute="count") %}
+<form class="row" method="post" action="{{ url_for('reprocess', number=version.number) }}">
+  <input type="hidden" name="csrf" value="{{ g.csrf }}">
+  <input type="hidden" name="days" value="{{ days }}">
+  <input type="hidden" name="apply" value="1">
+  <button type="submit">Move them</button>
+  <a class="btn ghost" href="{{ url_for('version_page', number=version.number) }}">Cancel</a>
+</form>
+{% else %}<p class="muted">Nothing to move.</p>{% endif %}
+{% else %}
+<p class="muted">Running this again finds nothing new to move. {% if provider == 'fastmail' %}In Fastmail, open the AI/&lt;category&gt; folder to see them.{% else %}In Gmail, search <code>label:AI/&lt;category&gt;</code> to see them.{% endif %}</p>
+{% endif %}
+</div>
+{% endif %}
+<p><a href="{{ url_for('version_page', number=version.number) }}">← Back to v{{ version.number }}</a></p>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "macros.html" import filing_row %}
+{% block title %}Filed mail{% endblock %}
+{% block main %}
+<div class="page-head">
+  <div>
+    <h1>Filed mail</h1>
+    <p>{{ total }} emails filed in the last {{ days }} days. Search by sender or subject, see what decided each one, and change it.</p>
+  </div>
+</div>
+
+{% if done %}
+<div class="notice good"><p>{% if applied == "1" %}Done: the email was moved in {{ mail_name }}.{% else %}Saved. The email is moved in {{ mail_name }} {{ pending_when }}.{% endif %}</p></div>
+{% endif %}
+
+{% for sg in suggestions %}
+<div class="notice info suggestion">
+  <p>You moved mail from <strong>{{ sg.sender }}</strong> to <strong>{{ sg.category }}</strong>{% if sg.count > 1 %} ({{ sg.count }} emails){% endif %}. Save a rule?</p>
+  <div class="row">
+    {% for p in sg.patterns %}
+    <form method="post" action="{{ url_for('suggestion_save') }}">
+      <input type="hidden" name="csrf" value="{{ g.csrf }}"><input type="hidden" name="back" value="{{ request.script_root ~ request.full_path }}">
+      <input type="hidden" name="sender" value="{{ sg.sender }}"><input type="hidden" name="pattern" value="{{ p }}">
+      <button type="submit" class="small" title="Saves a new rules version: {{ p }} = {{ sg.category }}">Save as {{ "sender" if loop.first else "domain" }} <code>{{ p }}</code></button>
+    </form>
+    {% endfor %}
+    <form method="post" action="{{ url_for('suggestion_dismiss') }}">
+      <input type="hidden" name="csrf" value="{{ g.csrf }}"><input type="hidden" name="back" value="{{ request.script_root ~ request.full_path }}">
+      <input type="hidden" name="sender" value="{{ sg.sender }}">
+      <button type="submit" class="small ghost">Dismiss</button>
+    </form>
+  </div>
+</div>
+{% endfor %}
+
+<form class="card searchbar" method="get" action="{{ url_for('filed') }}" role="search">
+  <label class="field"><span>Sender or subject</span>
+    <input name="q" value="{{ q }}" placeholder="e.g. campaign, receipt, @substack.com" autocomplete="off"></label>
+  <label class="field"><span>Category</span>
+    <select name="category">
+      <option value="">All categories</option>
+      {% for name in choices %}<option {% if name == category %}selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select></label>
+  <label class="field"><span>Period</span>
+    <select name="days">
+      {% for d in (1, 7, 14, 30) %}<option value="{{ d }}" {% if d == days %}selected{% endif %}>Last {{ d }} day{{ "s" if d > 1 }}</option>{% endfor %}
+    </select></label>
+  <button type="submit">Search</button>
+</form>
+
+<nav class="pills" aria-label="Categories">
+  <a class="pill {% if not category %}active{% endif %}" href="{{ url_for('filed', q=q or None, days=days) }}">All <span class="count">{{ total }}</span></a>
+  {% for name in choices %}
+  <a class="pill {% if name == category %}active{% endif %}" href="{{ url_for('filed', category=name, q=q or None, days=days) }}">{{ name }} <span class="count">{{ counts.get(name, 0) }}</span></a>
+  {% endfor %}
+  {% for name, n in counts.items() if name not in choices %}
+  <a class="pill {% if name == category %}active{% endif %}" href="{{ url_for('filed', category=name, q=q or None, days=days) }}">{{ name }} <span class="count">{{ n }}</span></a>
+  {% endfor %}
+</nav>
+
+{% if not rows %}
+<div class="card"><p class="muted">{% if q %}No emails{% if category %} in {{ category }}{% endif %} match “{{ q }}” in the last {{ days }} days.{% else %}Nothing filed{% if category %} as {{ category }}{% endif %} in the last {{ days }} days.{% endif %}</p></div>
+{% else %}
+<p class="muted small">
+  {% if q %}{{ rows|length }} match{{ "es" if rows|length != 1 }} for “{{ q }}”{% if category %} in {{ category }}{% endif %}{% if rows|length == 300 %} (showing the newest 300){% endif %}.
+  {% elif category %}{{ rows|length }} filed as {{ category }}{% if rows|length == 300 %} (newest 300){% endif %}.
+  {% else %}The 50 most recent filings. Search or pick a category to see more.{% endif %}
+</p>
+<div class="card flush">
+<table class="table stack-sm">
+<thead><tr><th>Email</th><th>Filed as</th><th>Why</th><th></th></tr></thead>
+<tbody>
+{% for row in rows %}{{ filing_row(row, choices, mailbox, request.script_root ~ request.full_path) }}
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

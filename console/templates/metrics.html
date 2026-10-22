@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Metrics{% endblock %}
+{% macro pct(x) %}{{ "%.0f"|format(x * 100) }}%{% endmacro %}
+{% macro legend(names, colours) -%}
+<ul class="legend">{% for n in names %}<li><span class="swatch {{ colours[n] }}" aria-hidden="true"></span>{{ n }}</li>{% endfor %}</ul>
+{%- endmacro %}
+{% block main %}
+<div class="page-head">
+  <div>
+    <h1>Metrics</h1>
+    <p>{{ m.start.strftime("%b %-d") }} – {{ m.end.strftime("%b %-d") }}. Built from the filing and correction
+      records, which are kept for 30 days, so 30 days is the longest range. Updated at most once a minute.</p>
+  </div>
+  <nav class="pills" aria-label="Range">
+    {% for d in (7, 30) %}<a class="pill {% if d == m.days %}active{% endif %}" href="{{ url_for('metrics_page', days=d) }}" {% if d == m.days %}aria-current="page"{% endif %}>Last {{ d }} days</a>{% endfor %}
+  </nav>
+</div>
+
+{% if not m.total %}
+<div class="card"><p class="muted">Nothing was filed in the last {{ m.days }} days.</p></div>
+{% else %}
+<section class="tiles" aria-label="Summary">
+  <div class="tile"><span class="tile-label">Emails filed</span><span class="tile-value">{{ "{:,}".format(m.tiles.filed) }}</span><span class="tile-sub">about {{ "%.0f"|format(m.tiles.per_day) }} a day</span></div>
+  <div class="tile"><span class="tile-label">Decided by Jev</span><span class="tile-value">{{ pct(m.tiles.jev) }}</span><span class="tile-sub">sender rule {{ pct(m.tiles.sender_rule) }} · known junk {{ pct(m.tiles.known_junk) }}</span></div>
+  <div class="tile"><span class="tile-label">Sent to Review</span><span class="tile-value">{{ pct(m.tiles.review) }}</span><span class="tile-sub">Jev below {{ m.thresholds[0] }}: {{ pct(m.tiles.low_confidence) }} of its answers</span></div>
+  <div class="tile"><span class="tile-label">Out of the Inbox</span><span class="tile-value">{{ pct(m.tiles.archived + m.tiles.spam) }}</span><span class="tile-sub">archived {{ pct(m.tiles.archived) }} · Spam {{ pct(m.tiles.spam) }}</span></div>
+  <div class="tile"><span class="tile-label">Corrections</span><span class="tile-value">{{ m.tiles.corrections }}</span><span class="tile-sub">{{ pct(m.tiles.correction_rate) }} of filed · Change {{ m.tiles.corrections_console }} · moved in Mail {{ m.tiles.corrections_moved }}</span></div>
+  <div class="tile"><span class="tile-label">Rule suggestions waiting</span><span class="tile-value">{{ m.tiles.open_suggestions }}</span><span class="tile-sub">{% if m.tiles.open_suggestions %}<a href="{{ url_for('filed') }}">Review on Filed mail</a>{% else %}none open{% endif %}</span></div>
+  {% if m.spend %}
+  <div class="tile"><span class="tile-label">Cloud spend this month</span><span class="tile-value">{{ "%.2f"|format(m.spend.cost) }} {{ m.spend.currency }}</span>
+    <span class="tile-sub">of the {{ "%.2f"|format(m.spend.budget) }} budget{% if m.spend.paused %} · <strong>paused</strong>{% endif %}</span>
+    {{ share_bar(m.spend.cost / m.spend.budget, "meter-" ~ ("bad" if m.spend.cost >= m.spend.budget else "warn" if m.spend.cost >= 0.8 * m.spend.budget else "ok"), "%.0f%% of the budget"|format(100 * m.spend.cost / m.spend.budget)) }}</div>
+  {% endif %}
+</section>
+
+<section class="card viz">
+  <h2>Mail per day</h2>
+  <p class="muted small">Emails filed each day, stacked by category. Hover a segment for its count.</p>
+  {{ legend(m.categories, m.colours) }}
+  <div class="chart-scroll{% if m.days > 7 %} wide{% endif %}">{{ charts.daily }}</div>
+  <details class="table-view"><summary>Table view</summary>
+    <div class="table-scroll"><table class="table compact">
+      <thead><tr><th>Day</th>{% for c in m.categories %}<th class="num">{{ c }}</th>{% endfor %}<th class="num">Total</th></tr></thead>
+      <tbody>{% for d, counts in m.per_day|reverse %}<tr><td class="nowrap">{{ d.strftime("%a %b %-d") }}</td>{% for c in m.categories %}<td class="num">{{ counts.get(c, 0) or "" }}</td>{% endfor %}<td class="num">{{ counts.values()|sum }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </details>
+</section>
+
+<section class="card viz">
+  <h2>Categories</h2>
+  <table class="table compact">
+    <thead><tr><th>Category</th><th class="bar-col">Share of mail</th><th class="num">Emails</th><th class="num hide-sm">Share</th><th class="num">Archived</th></tr></thead>
+    <tbody>{% for r in m.by_category %}
+      <tr><td><span class="swatch {{ r.colour }}" aria-hidden="true"></span>{{ r.category }}</td>
+        <td class="bar-col">{{ share_bar(r.share, r.colour, r.category ~ ": " ~ pct(r.share)) }}</td>
+        <td class="num">{{ "{:,}".format(r.count) }}</td><td class="num hide-sm">{{ pct(r.share) }}</td><td class="num">{{ pct(r.archived) }}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+</section>
+
+<section class="card viz">
+  <h2>How sure Jev was</h2>
+  <p class="muted small">{{ "{:,}".format(m.jev_decided) }} emails went to Jev (sender rules and known junk senders skip it).
+    Below {{ m.thresholds[0] }} an email goes to Review; mail in an archived category leaves the Inbox at {{ m.thresholds[1] }} or above.</p>
+  <div class="chart-narrow">{{ charts.confidence }}</div>
+  <details class="table-view"><summary>Table view</summary>
+    <table class="table compact">
+      <thead><tr><th>Confidence</th><th class="num">Emails</th></tr></thead>
+      <tbody>{% for b in m.histogram if b.count %}<tr><td>{{ "%.2f"|format(b.lo) }}–{{ "%.2f"|format(b.hi) }}</td><td class="num">{{ b.count }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+</section>
+
+<section class="card viz">
+  <h2>Corrections over time</h2>
+  <p class="muted small">{{ m.tiles.corrections }} correction{{ "s" if m.tiles.corrections != 1 }}: {{ m.tiles.corrections_console }} with Change in the console, {{ m.tiles.corrections_moved }} by moving mail between labels in Mail or {{ mail_name }}.</p>
+  {{ legend(sources, {sources[0]: "s1", sources[1]: "s2"}) }}
+  <div class="chart-scroll{% if m.days > 7 %} wide{% endif %}">{{ charts.corrections }}</div>
+  <details class="table-view"><summary>Table view</summary>
+    <table class="table compact">
+      <thead><tr><th>Day</th>{% for s in sources %}<th class="num">{{ s }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for d, counts in m.corrections_per_day|reverse if counts %}<tr><td class="nowrap">{{ d.strftime("%a %b %-d") }}</td>{% for s in sources %}<td class="num">{{ counts.get(s, 0) }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="3" class="muted">No corrections in this range.</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+</section>
+
+<div class="grid-2">
+<section class="card viz">
+  <h2>Most corrected</h2>
+  {% if m.corrected_pairs %}
+  <table class="table compact">
+    <thead><tr><th>Filed as</th><th>Changed to</th><th class="num">Times</th></tr></thead>
+    <tbody>{% for p in m.corrected_pairs %}<tr><td>{{ p.from }}</td><td>{{ p.to }}</td><td class="num">{{ p.count }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}<p class="muted">No corrections in this range.</p>{% endif %}
+</section>
+
+<section class="card viz">
+  <h2>Top senders by category</h2>
+  <table class="table compact">
+    <thead><tr><th>Category</th><th>Sender</th><th class="num">Emails</th></tr></thead>
+    <tbody>{% for t in m.top_senders %}{% for sender, n in t.senders %}
+      <tr>{% if loop.first %}<td rowspan="{{ t.senders|length }}"><span class="swatch {{ t.colour }}" aria-hidden="true"></span>{{ t.category }}</td>{% endif %}
+        <td class="sender-cell">{{ sender }}</td><td class="num">{{ n }}</td></tr>
+    {% endfor %}{% endfor %}</tbody>
+  </table>
+</section>
+</div>
+
+<p class="muted small">Jev errors and retries aren't recorded in the filing records (only in the service logs), so they aren't shown here.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Rules{% endblock %}
+{% block main %}
+<div class="card">
+  <h1>No rules yet</h1>
+  <p class="muted">The triage service is still using the rules in <code>deploy/env.yaml</code>. Seed version 1 from them with
+  <code>python scripts/seed_rules.py --apply</code>, then reload this page.</p>
+</div>
+{% endblock %}

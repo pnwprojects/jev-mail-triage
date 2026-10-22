@@ -1,0 +1,78 @@
+{% macro action_badge(action, dry_run=False) -%}
+<span class="badge {{ action }}">{{ action|action }}</span>{% if dry_run %} <span class="badge warn">dry run</span>{% endif %}
+{%- endmacro %}
+
+{% set setting_names = {
+  "archive_categories": "Archived categories", "spam_category": "Spam category",
+  "confidence_threshold": "Review below", "archive_threshold": "Archive at", "spam_threshold": "Spam at",
+  "learn_junk_senders": "Spam known junk senders", "protected_domains": "Protected domains",
+  "jev_model": "Jev model", "dry_run": "Paused"} %}
+
+{% macro diff_table(rows) -%}
+<table class="table stack-sm">
+<thead><tr><th>Setting</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+{% for field, before, after in rows %}
+<tr><td class="nowrap"><strong>{{ setting_names.get(field, field) }}</strong></td><td class="diff-before">{{ before }}</td><td>{{ after }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{%- endmacro %}
+
+{% macro change_panel(f, patterns, choices, back, open=False) -%}
+<details class="change"{% if open %} open{% endif %}>
+  <summary>Change</summary>
+  <div class="panel">
+    <form method="post" action="{{ url_for('correct', msg_id=f.message_id) }}">
+      <input type="hidden" name="csrf" value="{{ g.csrf }}">
+      <input type="hidden" name="back" value="{{ back }}">
+      <label class="field"><span>File it as</span>
+        <select name="category">{% for name in choices if name != (f.corrected_to or f.category) %}<option>{{ name }}</option>{% endfor %}</select>
+      </label>
+      <div class="field"><span>Apply to</span>
+        <label class="check"><input type="radio" name="sender_rule" value="" checked> <span>Just this email</span></label>
+        {% for p in patterns %}
+        <label class="check"><input type="radio" name="sender_rule" value="{{ p }}">
+          <span>Always for <code>{{ p }}</code></span></label>
+        {% endfor %}
+        <span class="hint">"Always" saves a sender rule (a new rules version); you can edit it on the Rules page.</span>
+      </div>
+      <button type="submit" class="small">Move it</button>
+    </form>
+  </div>
+</details>
+{%- endmacro %}
+
+{% macro filing_row(row, choices, mailbox, back, open=False) -%}{% set f = row.f %}
+<tr id="m-{{ f.message_id }}">
+  <td>
+    <a class="subject" href="{% if provider == 'fastmail' %}https://app.fastmail.com/mail/search:{{ ('subject:"' ~ f.subject[:100]|replace('"', '') ~ '"')|urlencode }}/{% else %}https://mail.google.com/mail/u/?authuser={{ mailbox|urlencode }}#all/{{ f.message_id }}{% endif %}" target="_blank" rel="noopener noreferrer">{{ f.subject or "(no subject)" }}</a>
+    <div class="sender">{{ f.sender }}</div>
+    <div class="muted small">{{ (f.received_at or f.filed_at)|local }}</div>
+  </td>
+  <td>
+    <div><span class="chip">{{ f.category }}</span></div>
+    <div class="small">{{ action_badge(f.action, f.dry_run) }}</div>
+    {% if f.correction %}{% set c = f.correction %}
+    <div class="small">
+      {% if c.source == "moved in mail" %}<span class="badge good">{% if c.category %}Moved in {{ mail_name }} to {{ c.category }}{% elif c.labels %}Moved in {{ mail_name }}: {{ c.labels|join(", ") }}{% else %}Label removed in {{ mail_name }}{% endif %}</span>
+      {% elif c.status == "applied" %}<span class="badge good">Corrected to {{ c.category }}</span>
+      {% elif c.status == "failed" %}<span class="badge bad">Correction failed</span> <span class="muted">{{ c.error }}</span>
+      {% else %}<span class="badge warn">Moving to {{ c.category }}…</span>{% endif %}
+    </div>
+    {% endif %}
+  </td>
+  <td class="small">
+    <div>{{ f|why }}
+      {% if f.confidence is not none %}<span class="badge {{ 'good' if f.confidence >= 0.9 else 'warn' if f.confidence >= 0.7 else 'bad' }}" title="Jev's confidence">{{ (f.confidence * 100)|round|int }}%</span>{% endif %}</div>
+    {% if f.rules_version.startswith("v") %}<div class="muted">Rules <a href="{{ url_for('version_page', number=f.rules_version[1:]|int) }}">{{ f.rules_version }}</a></div>
+    {% elif f.rules_version %}<div class="muted">Rules: {{ f.rules_version }}</div>{% endif %}
+    {% if row.rule_now and f.note != "sender rule " ~ row.rule_now[0] %}<div class="muted">Sender rule now: <code>{{ row.rule_now[0] }}</code> → {{ row.rule_now[1] }}</div>{% endif %}
+  </td>
+  <td>
+    {% if not f.correction or f.correction.status == "failed" or f.correction.source == "moved in mail" %}
+    {{ change_panel(f, row.patterns, choices, back, open) }}
+    {% endif %}
+  </td>
+</tr>
+{%- endmacro %}

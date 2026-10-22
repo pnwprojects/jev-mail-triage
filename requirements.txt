@@ -1,0 +1,8 @@
+functions-framework==3.*
+google-api-python-client>=2.140
+google-auth>=2.30
+google-cloud-firestore>=2.16
+google-cloud-secret-manager>=2.20
+typesafe-sdk>=0.7.2
+pydantic>=2.7
+requests>=2.31

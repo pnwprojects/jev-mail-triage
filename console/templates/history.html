@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+{% block main %}
+<div class="page-head"><div><h1>History</h1><p>Every saved version of the rules. Open one to see what changed, restore it, or apply it to recent mail.</p></div></div>
+<div class="card flush">
+<ul class="timeline">
+{% for v in versions %}
+  <li>
+    <a class="vnum" href="{{ url_for('version_page', number=v.number) }}">v{{ v.number }}</a>
+    <div>
+      <div>{{ v.note or "(no note)" }}{% if v.number == active %} <span class="badge good">active</span>{% endif %}</div>
+      <div class="muted small">{{ v.created_by }}</div>
+    </div>
+    <span class="muted small nowrap">{{ v.created_at|local }}</span>
+  </li>
+{% endfor %}
+</ul>
+</div>
+{% endblock %}

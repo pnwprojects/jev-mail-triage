@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Rules{% endblock %} · Mail triage</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
+</head>
+<body>
+{% set nav = [("rules_page", "Rules"), ("filed", "Filed mail"), ("metrics_page", "Metrics"), ("history", "History")] %}
+{% set section = {"rules_page": "rules_page", "review": "rules_page", "save": "rules_page",
+                  "filed": "filed", "correct": "filed", "change": "filed", "metrics_page": "metrics_page",
+                  "history": "history", "version_page": "history", "reprocess": "history"}.get(request.endpoint) %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="{{ url_for('rules_page') }}"><span class="brand-mark">T</span>Mail triage</a>
+    <nav class="nav">
+      {% for endpoint, label in nav %}
+      <a href="{{ url_for(endpoint) }}" {% if section == endpoint %}class="active" aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    {% if accounts|length > 1 %}
+    <nav class="accounts" aria-label="Mail account">
+      {% for a in accounts %}<a href="{{ a.href }}" {% if a.mailbox == mailbox %}class="active" aria-current="true"{% endif %}>{{ a.label }}</a>{% endfor %}
+    </nav>
+    {% endif %}
+    <div class="who"><span>{{ g.editor.email }}</span><span class="avatar">{{ g.editor.email[:1]|upper }}</span></div>
+  </div>
+</header>
+<main class="page">
+{% if g.budget.paused %}
+<div class="notice bad">
+  <p><strong>Triage is stopped.</strong> This month's Google Cloud spend reached
+  {{ "%.2f"|format(g.budget.cost) }} of the {{ "%.2f"|format(g.budget.budget) }} {{ g.budget.currency }} budget,
+  so new mail isn't being filed. It's filed after you resume (if within about a week), and triage resumes on its
+  own when the next billing month starts.</p>
+  <form method="post" action="{{ url_for('budget_resume') }}">
+    <input type="hidden" name="csrf" value="{{ g.csrf }}">
+    <input type="hidden" name="next" value="{{ request.script_root ~ request.path }}">
+    <button type="submit" class="danger small">Resume for the rest of this month</button>
+  </form>
+</div>
+{% endif %}
+{% block main %}{% endblock %}
+</main>
+</body>
+</html>

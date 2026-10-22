@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% from "macros.html" import diff_table %}
+{% block title %}Review changes{% endblock %}
+{% block main %}
+<div class="page-head"><div><h1>Review changes</h1><p>Compared with v{{ based_on }}.</p></div></div>
+{% if conflict %}<div class="notice warn"><p>Version {{ conflict.number }} was saved by {{ conflict.created_by }} after you opened the rules.
+The table compares your rules with it. Saving replaces it; or go back to the rules to start from it.</p></div>{% endif %}
+<div class="stack">
+<div class="card flush">
+{% if rows %}{{ diff_table(rows) }}{% else %}<p class="muted card">No changes.</p>{% endif %}
+</div>
+<form class="card" method="post" action="{{ url_for('save') }}">
+  <input type="hidden" name="csrf" value="{{ g.csrf }}">
+  <input type="hidden" name="based_on" value="{{ based_on }}">
+  <input type="hidden" name="rules" value="{{ rules_json }}">
+  <label class="field"><span>What changed and why</span><input name="note" maxlength="500" required placeholder="e.g. archive marketing"></label>
+  <div class="row"><button type="submit">Save and apply</button><a class="btn ghost" href="{{ url_for('rules_page') }}">Back to the rules</a></div>
+</form>
+</div>
+{% endblock %}

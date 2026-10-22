@@ -1,0 +1,12 @@
+# Runtime config for fastmail-triage (a Fastmail account). Edit, then
+# re-run deploy/deploy-fastmail.sh. Policy (categories, thresholds, sender rules, pause)
+# comes from this account's own rules in the console, at /fastmail.
+MAIL_PROVIDER: "fastmail"
+GOOGLE_CLOUD_PROJECT: "your-project-id"
+MAILBOX: "you@fastmail.example"      # this account's key for rules, filings and state
+BUDGET_MAILBOX: "you@your-domain.example"  # one budget pause for every account; it lives on the Gmail one
+FASTMAIL_TOKEN_SECRET: "fastmail-token"
+JEV_PROVIDER: "typesafe"
+LABEL_PREFIX: "AI/"
+BODY_CHARS: "1500"
+DRY_RUN: "false"                    # "true" logs decisions and changes nothing
